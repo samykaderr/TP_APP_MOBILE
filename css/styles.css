@@ -1,0 +1,33 @@
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f5f7fb;
+}
+
+.navbar-brand span[aria-hidden="true"] {
+    font-size: 1.25rem;
+}
+
+#book-count {
+    min-width: 140px;
+    text-align: center;
+}
+
+.card-img-top {
+    height: 220px;
+    object-fit: cover;
+}
+
+.card-text {
+    min-height: 56px;
+}
+
+.text-ellipsis {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.empty-state {
+    padding: 2rem 1rem;
+}
