@@ -1,136 +1,148 @@
-// script.js
-const books = [
-  {
-    title: "Le Petit Prince",
-    author: "Antoine de Saint-Exupéry",
-    description: "Un conte philosophique sur l'amitié et l'amour",
-    image: "/resource/EldenRing.png",
-  },
-  {
-    title: "1984",
-    author: "George Orwell",
-    description: "Un roman dystopique sur la surveillance de masse",
-    image: "/resource/img1.png",
-  },
-  {
-    title: "L'Étranger",
-    author: "Albert Camus",
-    description: "Un roman sur l'absurdité de l'existence",
-    image: "/resource/img2.png",
-  },
-  {
-    title: "Les Misérables",
-    author: "Victor Hugo",
-    description: "L'histoire de Jean Valjean dans la France du XIXe siècle",
-    image: "/resource/img3.png",
-  },
-  {
-    title: "Le Rouge et le Noir",
-    author: "Stendhal",
-    description: "L'ascension sociale de Julien Sorel",
-    image: "/resource/img4.png",
-  },
-  {
-    title: "Madame Bovary",
-    author: "Gustave Flaubert",
-    description: "Le roman d'une femme insatisfaite",
-    image: "/resource/img1.png",
-  },
-];
+let books = [];
+const CACHE_DURATION_MS = 2 * 60 * 1000; // 2 minutes en millisecondes
 
-const grid = document.getElementById("books-grid");
-const searchForm = document.getElementById("search-form");
-const searchInput = document.getElementById("search-input");
-const addBookForm = document.getElementById("addBookForm");
-const bookCount = document.getElementById("book-count");
-const addBookModalEl = document.getElementById("addBookModal");
-const addBookModal = addBookModalEl ? new bootstrap.Modal(addBookModalEl) : null;
-
-function renderBooks(list, filterText = "") {
-  const query = filterText.trim().toLowerCase();
-  const filtered = query
-    ? list.filter(({ title, author }) =>
-        `${title} ${author}`.toLowerCase().includes(query)
-      )
-    : list;
-
-  grid.innerHTML = "";
-
-  if (!filtered.length) {
-    grid.innerHTML = `
-      <div class="col-12">
-        <div class="alert alert-warning text-center empty-state" role="alert">
-          Aucun livre ne correspond à votre recherche.
-        </div>
-      </div>`;
-  } else {
-    filtered.forEach((book) => {
-      const col = document.createElement("div");
-      col.className = "col-12 col-sm-6 col-lg-4";
-      col.innerHTML = `
-        <div class="card h-100 shadow-sm">
-          <img src="${book.image || "https://placehold.co/400x600?text=Livre"}" class="card-img-top" alt="${book.title}">
-          <div class="card-body d-flex flex-column">
-            <h5 class="card-title mb-1">${book.title}</h5>
-            <p class="card-subtitle mb-2 text-muted text-ellipsis">${book.author}</p>
-            <p class="card-text flex-grow-1">${book.description}</p>
-            <button class="btn btn-outline-primary mt-2" type="button">Proposer un échange</button>
-          </div>
-        </div>`;
-      grid.appendChild(col);
-    });
-  }
-
-  bookCount.textContent = `${filtered.length} livre${filtered.length > 1 ? "s" : ""}`;
+/* --- Affichage conditionnel des sections --- */
+function showShareForm() {
+  document.getElementById("books-section").style.display = "none";
+  document.getElementById("share-form-section").style.display = "block";
 }
 
-searchForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  renderBooks(books, searchInput.value);
-});
+function showBooks() {
+  document.getElementById("share-form-section").style.display = "none";
+  document.getElementById("books-section").style.display = "block";
+}
 
-addBookForm?.addEventListener("submit", (event) => {
-  event.preventDefault();
-  event.stopPropagation();
+/* --- Affichage des livres dans la liste --- */
+function displayBooks(list) {
+  const listContainer = document.getElementById("books-list");
+  listContainer.innerHTML = ""; // On vide avant de re-remplir
+  list.forEach(book => {
+    const bookCard = `
+      <div class="col-md-4 mb-4">
+        <div class="card">
+          <img src="${book.image}" class="card-img-top" alt="Image du livre ${book.title}">
+          <div class="card-body">
+            <h5 class="card-title">${book.title}</h5>
+            <h6 class="card-subtitle mb-2 text-muted">${book.author}</h6>
+            <p class="card-text">${book.description}</p>
+          </div>
+        </div>
+      </div>
+    `;
+    listContainer.innerHTML += bookCard;
+  });
+}
 
-  if (!addBookForm.checkValidity()) {
-    addBookForm.classList.add("was-validated");
-    return;
+/* --- Chargement des livres au démarrage --- */
+window.onload = function () {
+  getBooksFromBackend();
+  startAutoRefresh();
+};
+
+async function getBooksFromBackend() {
+    const lastDownloadTime = localStorage.getItem("lastDownloadTime");
+    const now = Date.now(); // Timestamp actuel en ms depuis l'époque Unix
+  
+    // On vérifie si des données existent ET si elles ont moins de 2 minutes
+    const cacheIsValid =
+      lastDownloadTime && (now - parseInt(lastDownloadTime)) < CACHE_DURATION_MS;
+  
+    if (cacheIsValid) {
+      // Les données sont encore fraîches — on les lit depuis localStorage
+      const cachedBooks = localStorage.getItem("books");
+      books = JSON.parse(cachedBooks); // localStorage ne stocke que des chaînes, d'où le parse
+      console.log("📦 Livres chargés depuis le cache localStorage.");
+      displayBooks(books);
+      return; // On sort de la fonction sans faire d'appel réseau
+    }
+  
+    // Le cache est vieux ou inexistant — on télécharge depuis le backend
+    try {
+      const response = await fetch("http://localhost:3000/books");
+      if (!response.ok) throw new Error(`Erreur : ${response.status}`);
+  
+      books = await response.json();
+  
+      // On sauvegarde les données ET l'heure du téléchargement dans localStorage
+      localStorage.setItem("books", JSON.stringify(books));
+      localStorage.setItem("lastDownloadTime", now.toString());
+  
+      console.log("🌐 Livres téléchargés depuis le serveur et mis en cache.");
+      displayBooks(books);
+    } catch (error) {
+      console.error("Erreur de chargement :", error);
+    }
   }
 
-  const formData = new FormData(addBookForm);
+/* --- Interception de la soumission du formulaire --- */
+function handleFormSubmit(event) {
+  // On empêche le rechargement de la page (comportement natif du formulaire)
+  event.preventDefault();
+  submitNewBook();
+}
+
+/* --- Envoi du nouveau livre au back-end --- */
+async function submitNewBook() {
+  // On construit un objet JSON avec les valeurs du formulaire
   const newBook = {
-    title: formData.get("title").trim(),
-    author: formData.get("author").trim(),
-    description: formData.get("description").trim(),
-    image: formData.get("image").trim() || "https://placehold.co/400x600?text=Livre",
+    title:  document.getElementById("title").value,
+    author: document.getElementById("author").value,
+    year:   parseInt(document.getElementById("year").value),
+    genre:  document.getElementById("genre").value,
+    description: document.getElementById("description").value,
+    image: document.getElementById("image").value || '/resource/EldenRing.png' // Default image
   };
 
-  books.push(newBook);
-  addBookForm.reset();
-  addBookForm.classList.remove("was-validated");
-  renderBooks(books, searchInput.value);
-  addBookModal?.hide();
-});
-
-// Function to fetch books from the backend
-async function getBooksFromBackend() {
   try {
-    const response = await fetch('/books', { method: 'GET' });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const fetchedBooks = await response.json();
-    books.length = 0; // Clear the existing books array
-    books.push(...fetchedBooks); // Populate with fetched books
-    renderBooks(books); // Re-render the books on the page
+    const response = await fetch("http://localhost:3000/books", {
+      method: "POST",
+      // On indique au serveur que le corps est du JSON
+      headers: { "Content-Type": "application/json" },
+      // On sérialise l'objet en chaîne JSON
+      body: JSON.stringify(newBook),
+    });
+
+    if (!response.ok) throw new Error(`Erreur serveur : ${response.status}`);
+
+    const result = await response.json();
+    alert(`✅ Livre "${result.title}" ajouté avec succès !`);
+
+    // On vide le cache pour forcer le téléchargement de la nouvelle liste
+    localStorage.removeItem("lastDownloadTime");
+
+    // On recharge la liste et on revient à la section principale
+    await getBooksFromBackend();
+    showBooks();
   } catch (error) {
-    console.error('Error fetching books:', error);
+    console.error("Erreur lors de l'ajout :", error);
+    alert("❌ Impossible d'ajouter le livre.");
   }
 }
 
-// Call the function on page load
-window.addEventListener('load', getBooksFromBackend);
+window.addEventListener("beforeunload", function (event) {
+    const lastDownloadTime = localStorage.getItem("lastDownloadTime");
+  
+    if (!lastDownloadTime) return; // Aucune donnée en cache, on laisse passer
+  
+    const elapsed = Date.now() - parseInt(lastDownloadTime);
+  
+    if (elapsed < CACHE_DURATION_MS) {
+      const secondsAgo = Math.floor(elapsed / 1000);
+  
+      // Ce message s'affiche dans la boîte de dialogue native du navigateur
+      const message = `⚠️ Les données ont été chargées il y a seulement ${secondsAgo} secondes. Voulez-vous vraiment actualiser ?`;
+  
+      // Pour que la boîte de dialogue apparaisse, il faut affecter event.returnValue
+      event.returnValue = message; // Requis par la plupart des navigateurs modernes
+      return message;              // Pour la compatibilité avec les anciens navigateurs
+    }
+  });
 
-// Render initial list
-renderBooks(books);
+  function startAutoRefresh() {
+    // setInterval exécute une fonction de façon répétée à l'intervalle donné (en ms)
+    setInterval(async function () {
+      console.log(`🔄 [${new Date().toLocaleTimeString()}] Vérification du cache et rafraîchissement automatique...`);
+      await getBooksFromBackend();
+    }, CACHE_DURATION_MS); // Toutes les 2 minutes (120 000 ms)
+  }
+
